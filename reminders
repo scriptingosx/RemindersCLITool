@@ -1,0 +1,258 @@
+#!/usr/bin/osascript
+
+#
+# Copyright 2014 Armin Briegel
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#	  http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+property newline : "
+"
+
+property cutofftime: 2*days
+
+on getlistwithname(listname)
+	tell application "Reminders"
+		if (name of every list) contains listname then
+			return list listname
+		else
+			return missing value
+		end if
+	end tell
+end getlistwithname
+
+on formatlist(l)
+	return ((name of l) as string) -- add account name?
+end formatlist
+
+on formatreminder(t)
+	tell application "Reminders"
+		if completed of t then
+			set tickmark to "√"
+		else
+			set tickmark to "-"
+		end if
+
+		(*if my reminderisinlist(t, list "Today") then
+			set today to "*"
+		else
+			set today to space
+		end*)
+		set today to space
+
+		set output to today & tickmark & space & name of t
+
+		return output
+	end tell
+end
+
+
+on reminderisinlist(t, l)
+	tell application "Reminders"
+		return (id of t) is in (id of every reminder of l)
+	end
+end
+
+on listReminders(listname)
+	tell application "Reminders"
+		set target to my getlistwithname(listname)
+
+		if target is missing value then
+			return "cannot find list named '" & listname & "'"
+		end if
+
+		set output to "Reminders: " & my formatlist(target) & newline
+
+		if count of reminders of target is greater than 0 then
+			set d to current date
+			repeat with x in (every reminder of target)
+				set cd to completion date of x
+				if (cd is missing value) or (cd + cutofftime > d) then
+					set dd to due date of x
+					if (dd is missing value) or (dd < d) then
+						set output to output & my formatreminder(x) & newline
+					end
+				end
+			end repeat
+		else
+			set output to output & "no items" & newline
+		end
+	end tell
+	return output
+end listReminders
+
+on addReminderToList(t, l)
+	tell application "Reminders"
+		set target to my getlistwithname(l)
+		if target is missing value then
+			return "cannot find list or project '"&listname&"'"
+		end
+
+		make new reminder with properties {name: t} at target
+
+		my listReminders(l)
+	end
+end
+
+on setReminderStatusOnList(t, s, l)
+	tell application "Reminders"
+		set target to my getlistwithname(l)
+
+		if target is missing value then
+			return "cannot find list or project '"&listname&"'"
+		end
+
+		set the_items to every reminder of target whose name starts with t
+
+		if count of the_items is greater than 0 then
+			set x to first reminder of target whose name starts with t
+			if s is "completed" then
+				set completed of x to true
+			else if s is "open" then
+				set completed of x to false
+			end
+			return my listReminders(l)
+		else
+			return "cannot find reminder starting with '"&t&"' in "& my formatlist(target)
+		end
+	end
+end
+
+
+on deleteReminderOnList(t, l)
+	tell application "Reminders"
+		set target to my getlistwithname(l)
+
+		if target is missing value then
+			return "cannot find list or project '"&listname&"'"
+		end
+
+		set the_items to every reminder of target whose name starts with t
+
+		if count of the_items is greater than 0 then
+			delete first reminder of target whose name starts with t
+			return my listReminders(l)
+		else
+			return "cannot find to do starting with '"&t&"' in "& my formatlist(target)
+		end
+	end
+end
+
+on moveTo(t, sourcelistname, destlistname)
+	tell application "Reminders"
+		set sourcelist to my getlistwithname(sourcelistname)
+		if sourcelist is missing value then
+			return "cannot find list or project '"&sourcelistname&"'"
+		end
+
+		set destlist to my getlistwithname(destlistname)
+		if destlist is missing value then
+			return "cannot find list or project '"&destlistname&"'"
+		end
+
+		set the_items to every reminder of sourcelist whose name starts with t
+
+		if count of the_items is greater than 0 then
+			move first reminder of sourcelist whose name starts with t to destlist
+			return my listReminders(sourcelistname)
+		else
+			return "cannot find to do starting with '"&t&"' in "& my formatlist(sourcelist)
+		end
+	end
+
+end
+
+on run argv
+	set modifyverbs to {"add", "check", "uncheck", "delete"}
+
+	if (count of argv) is 0 then -- no arguments, show unsorted list
+		return my listReminders("unsorted")
+	end if
+
+	copy item 1 of argv to arg1
+
+	if (count of argv) is 1 then
+
+		-- help
+		if arg1 is in {"help", "-h", "-help", "--help"} then
+			return "reminders Command Line Tool: an CLI interface to the Reminders application" & newline & ¬
+				"usage: things [list] [help|open|show] [add|check|uncheck|delete reminder]"
+		end if
+
+		-- if that one argument is open, activate the application
+		if arg1 is in {"open", "show"} then
+			tell application "Reminders"
+				activate
+				show list "unsorted"
+			end tell
+			return
+		end if
+
+		-- interpret argument 1 as list name
+		return my listReminders(arg1)
+	end if
+
+	copy item 2 of argv to arg2
+
+	if (count of argv) is 2 then -- verb with no list name, assume default targets
+
+		if arg1 is in modifyverbs then
+			if arg1 is "add" then
+				return my addReminderToList(arg2, "unsorted")
+			else if arg1 is "check" then
+				return my setReminderStatusOnList(arg2, "completed", "unsorted")
+			else if arg1 is "uncheck" then
+				return my setReminderStatusOnList(arg2, "open", "unsorted")
+			else if arg1 is "delete" then
+				return my deleteREminderOnList(arg2, "unsorted")
+			end
+		end
+
+		if arg2 is in {"open", "show"} then
+			set target to my getlistwithname(arg1)
+			tell application "Reminders"
+				activate
+				show target
+				return
+			end
+		else
+			return "do not understand '" & arg2 & "'"
+		end
+	end
+
+
+	copy item 3 of argv to arg3
+
+	if count of argv is greater than 3 then
+		-- merge all following arguments
+		repeat with x in items 4 through -1 of argv
+			set arg3 to arg3 & space & x
+		end
+	end
+
+	if (count of argv) is greater than 2 then
+		if arg2 is in modifyverbs then
+			if arg2 is "add" then
+				return my addReminderToList(arg3, arg1)
+			else if arg2 is "check" then
+				return my setReminderStatusOnList(arg3, "completed", arg1)
+			else if arg2 is "uncheck" then
+				return my setReminderStatusOnList(arg3, "open", arg1)
+			else if arg2 is "delete" then
+				return my deleteReminderOnList(arg3, arg1)
+			end
+		else
+			return "do not understand '" & arg2 & "'"
+		end
+
+	end
+end run

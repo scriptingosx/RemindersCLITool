@@ -30,7 +30,7 @@ Reminders: CLI Tool
  √ add an item
  √ check an item
  √ delete an item
-   - upload to github
+ - upload to github
 ```
 
 The first line is show the name of the list, area or project the command was working on.

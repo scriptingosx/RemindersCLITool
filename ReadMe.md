@@ -1,4 +1,4 @@
-# ThingsCLITool #
+# Reminders Command Line Tool #
 
 Command line tool for OS X’s Reminders application
 

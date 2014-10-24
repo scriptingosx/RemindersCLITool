@@ -18,7 +18,7 @@
 property newline : "
 "
 
-property cutofftime: 2*days
+property cutofftime: 1*days
 
 on getlistwithname(listname)
 	tell application "Reminders"
@@ -48,8 +48,15 @@ on formatreminder(t)
 			set today to space
 		end*)
 		set today to space
+		
+        copy due date of t to dd
+        if dd is not missing value then
+            set duestring to  " (due: " & short date string of dd & ", " & time string of dd & ")"
+        else
+            set duestring to ""
+        end
 
-		set output to today & tickmark & space & name of t
+		set output to today & tickmark & space & name of t & duestring
 
 		return output
 	end tell
@@ -69,19 +76,13 @@ on listReminders(listname)
 		if target is missing value then
 			return "cannot find list named '" & listname & "'"
 		end if
-
 		set output to "Reminders: " & my formatlist(target) & newline
 
-		if count of reminders of target is greater than 0 then
+		set open_reminders to (reminders of target where completed is false)
+		if count of  open_reminders is greater than 0 then
 			set d to current date
-			repeat with x in (every reminder of target)
-				set cd to completion date of x
-				if (cd is missing value) or (cd + cutofftime > d) then
-					set dd to due date of x
-					if (dd is missing value) or (dd < d) then
-						set output to output & my formatreminder(x) & newline
-					end
-				end
+			repeat with x in open_reminders
+				set output to output & my formatreminder(x) & newline
 			end repeat
 		else
 			set output to output & "no items" & newline
